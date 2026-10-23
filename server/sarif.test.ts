@@ -7,9 +7,25 @@ const key = "AKIAIOSFODNN7EXAMPLE";
 
 describe("parseSarif", () => {
   it("reads rule, place and message, and keeps nothing of the match", () => {
-    const { tool, findings } = parse("s", { rule: "aws-access-key", level: "warning", path: "src/deploy.sh", line: 7, code: `export KEY=${key}`, message: "Detected an AWS access key" });
+    const { tool, findings } = parse("s", {
+      rule: "aws-access-key",
+      level: "warning",
+      path: "src/deploy.sh",
+      line: 7,
+      code: `export KEY=${key}`,
+      message: "Detected an AWS access key",
+    });
     expect(tool).toBe("gitleaks");
-    expect(findings).toEqual([{ fingerprint: expect.stringMatching(/^[0-9a-f]{32}$/), ruleId: "aws-access-key", severity: "high", path: "src/deploy.sh", line: 7, message: "Detected an AWS access key" }]);
+    expect(findings).toEqual([
+      {
+        fingerprint: expect.stringMatching(/^[0-9a-f]{32}$/),
+        ruleId: "aws-access-key",
+        severity: "high",
+        path: "src/deploy.sh",
+        line: 7,
+        message: "Detected an AWS access key",
+      },
+    ]);
     expect(JSON.stringify(findings)).not.toContain(key);
   });
 

@@ -45,7 +45,9 @@ async function call(method: string, path: string, init: RequestInit = {}, concre
   // A response is either inline or a $ref to components/responses; build the JSON pointer to its schema either way.
   const shared = declared!.$ref?.split("/").pop();
   const response = shared ? spec.components.responses[shared]! : declared!;
-  const at = shared ? `openapi#/components/responses/${shared}` : `openapi#/paths/${path.replaceAll("/", "~1")}/${method.toLowerCase()}/responses/${res.status}`;
+  const at = shared
+    ? `openapi#/components/responses/${shared}`
+    : `openapi#/paths/${path.replaceAll("/", "~1")}/${method.toLowerCase()}/responses/${res.status}`;
 
   if (!response.content) {
     expect(res.headers.get("content-length") ?? "0", `${method} ${path} ${res.status} should have no body`).toBe("0");
@@ -61,7 +63,10 @@ async function call(method: string, path: string, init: RequestInit = {}, concre
   return { res, body };
 }
 
-const auth = (token: string, body?: string, type = "application/json") => ({ headers: { authorization: `Bearer ${token}`, "content-type": type }, ...(body !== undefined && { body }) });
+const auth = (token: string, body?: string, type = "application/json") => ({
+  headers: { authorization: `Bearer ${token}`, "content-type": type },
+  ...(body !== undefined && { body }),
+});
 const admin = (body?: unknown) => auth(ADMIN_TOKEN, body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body));
 const inDays = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
 
@@ -103,9 +108,24 @@ describe("responses match openapi.json", () => {
   });
 
   it("scans: baseline, change, and every refusal", async () => {
-    const baseline = (await call("POST", "/api/v1/scans", send(), path("repository=acme/web&branch=main&commit=abc123"))).body as { id: string; repository: { id: string } };
+    const baseline = (await call("POST", "/api/v1/scans", send(), path("repository=acme/web&branch=main&commit=abc123"))).body as {
+      id: string;
+      repository: { id: string };
+    };
     repo = baseline.repository.id;
-    const change = (await call("POST", "/api/v1/scans", send(sarif({ rule: "aws-key", level: "error", path: "a.sh", code: "KEY=AKIAIOSFODNN7EXAMPLE" }, { rule: "gh-token", level: "error", path: "b.sh", code: "t=ghp_abc" })), path("repository=acme/web&branch=fix&pullRequest=3"))).body as {
+    const change = (
+      await call(
+        "POST",
+        "/api/v1/scans",
+        send(
+          sarif(
+            { rule: "aws-key", level: "error", path: "a.sh", code: "KEY=AKIAIOSFODNN7EXAMPLE" },
+            { rule: "gh-token", level: "error", path: "b.sh", code: "t=ghp_abc" },
+          ),
+        ),
+        path("repository=acme/web&branch=fix&pullRequest=3"),
+      )
+    ).body as {
       id: string;
       findings: Array<{ fingerprint: string }>;
     };
@@ -151,7 +171,8 @@ describe("responses match openapi.json", () => {
     await call("GET", "/api/v1/repositories/{id}/findings", admin(), "/api/v1/repositories/missing/findings");
     await call("GET", "/api/v1/repositories/{id}/findings", {}, `/api/v1/repositories/${repo}/findings`);
 
-    const put = (fp: string, state: unknown) => call("PUT", "/api/v1/repositories/{id}/findings/{fingerprint}", admin(state), `/api/v1/repositories/${repo}/findings/${fp}`);
+    const put = (fp: string, state: unknown) =>
+      call("PUT", "/api/v1/repositories/{id}/findings/{fingerprint}", admin(state), `/api/v1/repositories/${repo}/findings/${fp}`);
     await put(fingerprint, { state: "false-positive", reason: "A placeholder" });
     await put(fingerprint, { state: "revoked", reason: "Rotated" });
     await put(fingerprint, { state: "accepted", reason: "Behind the VPN", expiresAt: inDays(30) });

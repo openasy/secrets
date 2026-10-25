@@ -884,6 +884,49 @@
         "x-openasy-role": "viewer"
       }
     },
+    "/api/v1/overview": {
+      "get": {
+        "operationId": "getOverview",
+        "tags": [
+          "Product"
+        ],
+        "summary": "What the overview draws",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Open secrets by severity now and at the end of each of the last 30 days, found and fixed in each of the last 12 weeks, the rules and repositories with the most open, and pull request checks that passed and failed.\n\nNeeds the viewer role.",
+        "responses": {
+          "200": {
+            "description": "What the overview draws.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "viewer"
+      }
+    },
     "/api/v1/version": {
       "get": {
         "operationId": "getVersion",
@@ -1798,6 +1841,161 @@
           "nextCursor": {
             "type": "string",
             "description": "Pass the previous page's nextCursor to get the next page."
+          }
+        }
+      },
+      "Overview": {
+        "type": "object",
+        "required": [
+          "open",
+          "days",
+          "weeks",
+          "topRules",
+          "topRepositories",
+          "checks"
+        ],
+        "properties": {
+          "open": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "days": {
+            "type": "array",
+            "description": "Open findings at the end of each of the last 30 days (UTC), oldest first; the last one is now.",
+            "items": {
+              "type": "object",
+              "required": [
+                "day",
+                "open"
+              ],
+              "properties": {
+                "day": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "open": {
+                  "$ref": "#/components/schemas/Counts"
+                }
+              }
+            }
+          },
+          "weeks": {
+            "type": "array",
+            "description": "Findings first seen and fixed in each of the last 12 weeks, oldest first.",
+            "items": {
+              "type": "object",
+              "required": [
+                "week",
+                "new",
+                "fixed"
+              ],
+              "properties": {
+                "week": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "The week's first day."
+                },
+                "new": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "fixed": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "topRules": {
+            "type": "array",
+            "description": "Most open first; eight at most.",
+            "items": {
+              "type": "object",
+              "required": [
+                "rule",
+                "open",
+                "severity"
+              ],
+              "properties": {
+                "rule": {
+                  "type": "string"
+                },
+                "open": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "severity": {
+                  "$ref": "#/components/schemas/Severity"
+                }
+              }
+            }
+          },
+          "topRepositories": {
+            "type": "array",
+            "description": "Most open first; eight at most.",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name",
+                "open"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "open": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "checks": {
+            "type": "object",
+            "description": "Checks that passed and failed in the last 7 and 30 days.",
+            "required": [
+              "days7",
+              "days30"
+            ],
+            "properties": {
+              "days7": {
+                "type": "object",
+                "required": [
+                  "passed",
+                  "failed"
+                ],
+                "properties": {
+                  "passed": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "failed": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              },
+              "days30": {
+                "type": "object",
+                "required": [
+                  "passed",
+                  "failed"
+                ],
+                "properties": {
+                  "passed": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "failed": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
           }
         }
       }

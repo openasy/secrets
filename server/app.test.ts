@@ -143,3 +143,27 @@ describe("repositories and access", () => {
     expect(rows[0]!.value).toMatch(/^[0-9a-f]{64}$/);
   });
 });
+
+describe("the overview", () => {
+  let own: Awaited<ReturnType<typeof startApp>>;
+  beforeAll(async () => {
+    own = await startApp({ version: "0.1.0" });
+  });
+  afterAll(() => own.close());
+
+  it("counts open by day, found and fixed by week, and ranks rules and repositories", async () => {
+    const scan = (...r: TestResult[]) => own.scan({ repository: "acme/web", branch: "main", commit: "aaaa1111" }, sarif(...r));
+    await scan(aws, gh, generic);
+    await scan(gh, generic);
+    await own.scan({ repository: "acme/web", branch: "feature-1", pullRequest: "1" }, sarif(gh, generic));
+    const o = await json(await own.admin("/api/v1/overview"));
+    const total = Object.values(o.open as Record<string, number>).reduce((a, b) => a + b, 0);
+    expect(total).toBe(2);
+    expect(o.days).toHaveLength(30);
+    expect(o.days.at(-1).open).toEqual(o.open);
+    expect(o.weeks.at(-1)).toEqual({ week: expect.any(String), new: 3, fixed: 1 });
+    expect(o.topRules.map((r: { rule: string }) => r.rule).sort()).toEqual(["generic-api-key", "github-pat"]);
+    expect(o.topRepositories).toEqual([{ id: expect.any(String), name: "acme/web", open: 2 }]);
+    expect(o.checks.days7).toEqual({ passed: 1, failed: 0 });
+  });
+});

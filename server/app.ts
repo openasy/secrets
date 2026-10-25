@@ -199,6 +199,7 @@ export function createApp({ db, secrets, version, auth, adminToken, ingestToken,
     { method: "GET", path: "/api/v1/version", auth: "none", handle: () => ({ product: "secrets", version }) },
     { method: "GET", path: "/api/v1/products", auth: "viewer", handle: () => ({ products }) },
     { method: "GET", path: "/api/v1/summary", auth: "viewer", handle: () => secrets.summary() },
+    { method: "GET", path: "/api/v1/overview", auth: "viewer", handle: () => secrets.overview() },
 
     // SARIF in, from CI. The answer says whether the check passes, so a pipeline can fail on it.
     {

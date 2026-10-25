@@ -23,16 +23,39 @@ import {
   TextField,
   TimeSeriesChart,
   usePath,
-  type Column,
-  type ProductId,
   useThemePreference,
   useAgo,
   toLocale,
   useLocalePreference,
+  BarList,
+  DonutChart,
+  Gauge,
+  OverviewGrid,
+  SEVERITY_META,
+  StackedBarChart,
+  TONE_COLORS,
+  type Column,
+  type ProductId,
 } from "@openasy/ui";
 import { AccountSettings, AuthGate, MembersSettings, SignInSettings, TokensSettings, useAccountMenu, useAuth, useInstallBrand } from "@openasy/auth/react";
 import colophon from "virtual:openasy-colophon";
-import { Bug, CircleSlash, FolderGit2, KeyRound, LogIn, LogOut, Trash2, UserRound, Users, X } from "lucide-react";
+import {
+  Bug,
+  CircleAlert,
+  CircleSlash,
+  CircleX,
+  FolderGit2,
+  KeyRound,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  ShieldAlert,
+  Trash2,
+  TriangleAlert,
+  UserRound,
+  Users,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   api,
@@ -40,6 +63,7 @@ import {
   Unauthorized,
   type FailOn,
   type Finding,
+  type Overview,
   type ProductLink,
   type Repository,
   type Scan,
@@ -51,15 +75,16 @@ import { useT, type T } from "./i18n.ts";
 import { search } from "./search.ts";
 
 const PAGES = ["repositories", "setup", "account", "members", "signin", "tokens", "about"] as const;
-type Route = { page: "findings" | (typeof PAGES)[number] } | { page: "repository" | "scan"; id: string };
+type Route = { page: "overview" | "findings" | (typeof PAGES)[number] } | { page: "repository" | "scan"; id: string };
 /** The first path segments that are pages of this UI, for followLinks. */
-export const PATHS = ["findings", "repositories", "scans", ...PAGES];
+export const PATHS = ["overview", "findings", "repositories", "scans", ...PAGES];
 function parseRoute(path: string): Route {
   const [page, id] = path.replace(/^\//, "").split("/");
   if (page === "repositories" && id) return { page: "repository", id: decodeURIComponent(id) };
   if (page === "scans" && id) return { page: "scan", id: decodeURIComponent(id) };
   if ((PAGES as readonly string[]).includes(page ?? "")) return { page: page as (typeof PAGES)[number] };
-  return { page: "findings" };
+  if (page === "findings") return { page: "findings" };
+  return { page: "overview" };
 }
 
 /** Data loading with the session; when it ends, the sign-in screen comes back. */
@@ -417,6 +442,136 @@ function FindingsTable({ call, repoId, summary, reload }: { call: Call; repoId?:
   );
 }
 
+function OverviewPage({ call, summary }: { call: Call; summary?: Summary }) {
+  const ago = useAgo();
+  const t = useT();
+  const [o, setO] = useState<Overview>();
+  useEffect(() => void call<Overview>("/api/v1/overview").then(setO, () => {}), [call, summary]);
+  const s = summary;
+  const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+  const color = (sev: Severity) => TONE_COLORS[SEVERITY_META[sev].tone];
+  const checks = o ? o.checks.days30.passed + o.checks.days30.failed : 0;
+  return (
+    <>
+      <PageHeader
+        title={t("overviewPage.overview")}
+        description={s ? t("findingsPage.lastScan", { plural: t("plurals.repository", { count: s.repositories }), ago: ago(s.lastScanAt) }) : undefined}
+      />
+      {s && (
+        <KpiGrid minWidth={150}>
+          <KpiCard
+            label={t("findingsPage.critical")}
+            value={s.open.critical}
+            icon={ShieldAlert}
+            tone={s.open.critical ? "critical" : undefined}
+            trend={o?.days.map((d) => d.open.critical)}
+            trendColor={TONE_COLORS.critical}
+            href="/findings"
+          />
+          <KpiCard
+            label={t("findingsPage.high")}
+            value={s.open.high}
+            icon={TriangleAlert}
+            tone={s.open.high ? "danger" : undefined}
+            trend={o?.days.map((d) => d.open.high)}
+            trendColor={TONE_COLORS.danger}
+            href="/findings"
+          />
+          <KpiCard
+            label={t("findingsPage.medium")}
+            value={s.open.medium}
+            icon={CircleAlert}
+            trend={o?.days.map((d) => d.open.medium)}
+            trendColor={TONE_COLORS.warning}
+          />
+          <KpiCard label={t("findingsPage.failedChecks7Days")} value={s.failingChecks} icon={CircleX} tone={s.failingChecks ? "warning" : "success"} />
+          <KpiCard label={t("findingsPage.triaged")} value={s.suppressed} icon={CircleSlash} tone="info" />
+        </KpiGrid>
+      )}
+      {o && (
+        <OverviewGrid>
+          <Panel title={t("overviewPage.openOverTime")} description={t("overviewPage.openOverTimeDetail")}>
+            <StackedBarChart
+              label={t("overviewPage.openOverTime")}
+              categories={o.days.map((d) => day(d.day))}
+              segments={(["low", "medium", "high", "critical"] as const).map((k) => ({ id: k, name: t(`findingsPage.${k}`), color: color(k) }))}
+              values={o.days.map((d) => [d.open.low, d.open.medium, d.open.high, d.open.critical])}
+              height={190}
+              xTicks={6}
+            />
+          </Panel>
+          <Panel title={t("overviewPage.bySeverity")} description={t("overviewPage.bySeverityDetail")}>
+            <DonutChart
+              label={t("overviewPage.bySeverity")}
+              caption={t("overviewPage.open")}
+              slices={(["critical", "high", "medium", "low"] as const).map((k) => ({
+                id: k,
+                name: t(`findingsPage.${k}`),
+                value: o.open[k],
+                color: color(k),
+                href: "/findings",
+              }))}
+            />
+          </Panel>
+        </OverviewGrid>
+      )}
+      {o && (
+        <OverviewGrid>
+          <Panel title={t("overviewPage.foundAndFixed")} description={t("overviewPage.foundAndFixedDetail")}>
+            <TimeSeriesChart
+              label={t("overviewPage.foundAndFixed")}
+              labels={o.weeks.map((w) => day(w.week))}
+              height={190}
+              xTicks={6}
+              series={[
+                { id: "new", name: t("overviewPage.found"), data: o.weeks.map((w) => w.new), color: TONE_COLORS.danger },
+                { id: "fixed", name: t("overviewPage.fixed"), data: o.weeks.map((w) => w.fixed), color: TONE_COLORS.success },
+              ]}
+            />
+          </Panel>
+          <Panel title={t("overviewPage.checksPassed")} description={t("overviewPage.checksPassedDetail")}>
+            {checks ? (
+              <Gauge
+                label={t("overviewPage.checksPassed")}
+                value={o.checks.days30.passed}
+                max={checks}
+                tone={o.checks.days30.failed === 0 ? "success" : o.checks.days30.passed / checks >= 0.8 ? "warning" : "danger"}
+                caption={t("overviewPage.passedOfAll", { passed: o.checks.days30.passed, total: checks })}
+              />
+            ) : (
+              <EmptyState title={t("overviewPage.noChecks")} />
+            )}
+          </Panel>
+        </OverviewGrid>
+      )}
+      {o && (
+        <OverviewGrid layout="halves">
+          <Panel title={t("overviewPage.top1")} description={t("overviewPage.top1Detail")}>
+            {o.topRules.length ? (
+              <BarList
+                label={t("overviewPage.top1")}
+                items={o.topRules.map((x) => ({ id: x.rule, label: <span title={x.rule}>{x.rule}</span>, value: x.open, color: color(x.severity) }))}
+              />
+            ) : (
+              <EmptyState title={t("overviewPage.nothingOpen")} />
+            )}
+          </Panel>
+          <Panel title={t("overviewPage.top2")} description={t("overviewPage.top2Detail")}>
+            {o.topRepositories.length ? (
+              <BarList
+                label={t("overviewPage.top2")}
+                items={o.topRepositories.map((x) => ({ id: x.id, label: <span title={x.name}>{x.name}</span>, value: x.open, href: `/repositories/${x.id}` }))}
+              />
+            ) : (
+              <EmptyState title={t("overviewPage.nothingOpen")} />
+            )}
+          </Panel>
+        </OverviewGrid>
+      )}
+    </>
+  );
+}
+
 function FindingsPage({ call, summary, reload }: { call: Call; summary?: Summary; reload: () => void }) {
   const ago = useAgo();
   const t = useT();
@@ -427,16 +582,6 @@ function FindingsPage({ call, summary, reload }: { call: Call; summary?: Summary
         title={t("findingsPage.findings")}
         description={s ? t("findingsPage.lastScan", { plural: t("plurals.repository", { count: s.repositories }), ago: ago(s.lastScanAt) }) : undefined}
       />
-      {s && (
-        <KpiGrid minWidth={150}>
-          <KpiCard label={t("findingsPage.critical")} value={s.open.critical} footer={<SeverityBadge severity="critical" />} />
-          <KpiCard label={t("findingsPage.high")} value={s.open.high} footer={<SeverityBadge severity="high" />} />
-          <KpiCard label={t("findingsPage.medium")} value={s.open.medium} footer={<SeverityBadge severity="medium" />} />
-          <KpiCard label={t("findingsPage.low")} value={s.open.low} footer={<SeverityBadge severity="low" />} />
-          <KpiCard label={t("findingsPage.failedChecks7Days")} value={s.failingChecks} tone={s.failingChecks ? "warning" : "success"} />
-          <KpiCard label={t("findingsPage.triaged")} value={s.suppressed} tone="info" />
-        </KpiGrid>
-      )}
       <FindingsTable call={call} summary={s} reload={reload} />
     </>
   );
@@ -877,6 +1022,7 @@ function Product() {
   }, [reload]);
 
   const nav = [
+    { id: "overview", label: msg("product.overview"), icon: LayoutDashboard },
     { id: "findings", label: msg("product.findings"), icon: Bug },
     { id: "repositories", label: msg("product.repositories"), icon: FolderGit2, count: summary?.repositories },
   ];
@@ -913,8 +1059,10 @@ function Product() {
       onThemeChange={setTheme}
       onLanguageChange={(code) => setLocale(toLocale(code))}
     >
-      {route.page === "findings" && summary && summary.repositories === 0 ? (
+      {(route.page === "overview" || route.page === "findings") && summary && summary.repositories === 0 ? (
         <WelcomePage />
+      ) : route.page === "overview" ? (
+        <OverviewPage call={call} summary={summary} />
       ) : route.page === "findings" ? (
         <FindingsPage call={call} summary={summary} reload={reload} />
       ) : route.page === "repositories" ? (

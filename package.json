@@ -1,6 +1,6 @@
 {
   "name": "@openasy/secrets",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "OpenAsy Secrets: where secrets leaked in your repositories, and never the secrets themselves.",
   "license": "AGPL-3.0-only",
